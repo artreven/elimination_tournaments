@@ -8,11 +8,15 @@ class Participant:
     The Participant class represents a participant in a specific match.
     It can be used as a placeholder until the participant is decided.
     """
-    def __init__(self, competitor=None):
+    def __init__(self, competitor: str, resolved=True):
         self.competitor = competitor
+        self.resolved = resolved
 
     def __repr__(self) -> str:
-        return f'<Participant {self.competitor}>'
+        if self.resolved:
+            return f'<Participant {self.competitor}>'
+        else:
+            return f'[{self.competitor}]'
 
     def get_competitor(self):
         """

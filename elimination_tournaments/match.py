@@ -3,7 +3,9 @@ A match represents a single match in a tournament, between 2 participants.
 It adds empty participants as placeholders for the winner and loser,
 so they can be accessed as individual object pointers.
 """
-from double_elimination.participant import Participant
+from itertools import count
+
+from elimination_tournaments.participant import Participant
 
 class Match:
     """
@@ -11,11 +13,14 @@ class Match:
     It adds empty participants as placeholders for the winner and loser,
     so they can be accessed as individual object pointers.
     """
+    _ids = count(1)
+
     def __init__(self, left_participant, right_participant):
         self.__left_participant = left_participant
         self.__right_participant = right_participant
-        self.__winner = Participant()
-        self.__loser = Participant()
+        self.id = next(self._ids)
+        self.__winner = Participant(f'Winner {self.id}', resolved=False)
+        self.__loser = Participant(f'Loser {self.id}', resolved=False)
 
     def __repr__(self) -> str:
         left = self.__left_participant
@@ -23,7 +28,7 @@ class Match:
         winner = self.__winner
         loser = self.__loser
         return (
-            f'<Match left={left} right={right} winner={winner} loser={loser}>'
+            f'<Match {self.id} left={left} right={right} winner={winner} loser={loser}>'
         )
 
     def set_winner(self, competitor):
@@ -38,6 +43,8 @@ class Match:
             self.__loser.set_competitor(self.__left_participant.get_competitor())
         else:
             raise Exception("Invalid competitor")
+        self.__winner.resolved = True
+        self.__loser.resolved = True
 
     def get_winner_participant(self):
         """
@@ -63,7 +70,7 @@ class Match:
         This means that the match that the participant is coming from is finished.
         It also ensure that the winner hasn't been set yet.
         """
-        is_left_resolved = self.__left_participant.get_competitor() is not None
-        is_right_resolved = self.__right_participant.get_competitor() is not None
-        is_winner_resolved = self.__winner.get_competitor() is not None
+        is_left_resolved = self.__left_participant.resolved
+        is_right_resolved = self.__right_participant.resolved
+        is_winner_resolved = self.__winner.resolved
         return is_left_resolved and is_right_resolved and not is_winner_resolved
