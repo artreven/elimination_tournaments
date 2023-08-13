@@ -4,14 +4,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="double_elimination",
+    name="eliminations_tournaments",
     version="1.4.1",
     author="Michael Smith",
     author_email="michael.smith.ok@gmail.com",
     description="A double elimination tournament match handler.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/smwa/double_elimination",
+    # url="https://github.com/smwa/double_elimination",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
