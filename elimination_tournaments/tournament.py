@@ -4,61 +4,39 @@ This defines a double elimination 'Tournament' object.
 import abc
 import math
 import itertools
-from typing import List, Any
+from enum import Enum
+from typing import List, Any, Iterator
 
 from elimination_tournaments.match import Match
 from elimination_tournaments.participant import Participant
 
 
-class AbstractTournament(abc.ABC):
-    __matches: List[Any]
-    __winner: Participant
-
-    def __iter__(self):
-        return iter(self.__matches)
-
-    def __repr__(self) -> str:
-        winner = self.__winner
-        num_matches = len(self.__matches)
-        return f'<Tournament winner={winner} num_matches={num_matches}>'
-
-    def get_active_matches(self):
-        """
-        Returns a list of all matches that are ready to be played.
-        """
-        return [match for match in self.get_matches() if match.is_ready_to_start()]
-
-    def get_matches(self):
-        """
-        Returns a list of all matches for the tournament.
-        """
-        return self.__matches
-
-    def get_active_matches_for_competitor(self, competitor):
-        """
-        Given the string or object of the competitor that was supplied
-        when creating the tournament instance,
-        returns a list of Match's that they are currently playing in.
-        """
-        matches = []
-        for match in self.get_active_matches():
-            competitors = [participant.get_competitor() for participant in match.get_participants()]
-            if competitor in competitors:
-                matches.append(match)
-        return matches
-
-    def get_winners(self):
-        """
-        Returns None if the tournament is done, otherwise
-        returns list of the one victor.
-        """
-        if len(self.get_active_matches()) > 0:
-            return None
-        return [self.__winner.get_competitor()]
+class StagesEnum(Enum):
+    Finals = 2
+    SemiFinals = 4
+    QuarterFinals = 8
+    Last16 = 16
+    Last32 = 32
+    Last64 = 64
+    Last128 = 128
+    ForBronze = 3
+    For5th = 5
+    For7th = 7
+    For9th = 9
+    For11th = 11
+    For13th = 13
+    For15th = 15
+    For17th = 17
+    For19th = 19
+    For21th = 21
+    For23th = 23
+    For25th = 25
+    For27th = 27
+    For29th = 29
+    For31th = 31
 
 
-
-class DoubleEliminationTournament(AbstractTournament):
+class DoubleEliminationTournament:
     """
     This is a double-elimination tournament where each match is between 2 competitors.
     When a competitor loses they are sent to the losers bracket where they'll play until
@@ -69,7 +47,8 @@ class DoubleEliminationTournament(AbstractTournament):
     skilled and the last being the least. They can also be randomized before creating the instance.
     Optional options dict fields:
     """
-    def __init__(self, competitors_list, bracket_reset_finals=True):
+    def __init__(self, competitors_list, bracket_reset_finals=False):
+        self.match_counter = itertools.count(1)
         # Only tournaments with 2 or more competitors are valid.
         assert len(competitors_list) > 1
         self.__matches = []
@@ -89,6 +68,8 @@ class DoubleEliminationTournament(AbstractTournament):
 
         losers_by_round = []
         while len(incoming_participants) > 1:
+            next_higher_power_of_two = int(math.pow(2, math.ceil(math.log2(len(incoming_participants)))))
+            current_stage = StagesEnum(next_higher_power_of_two*2)
             losers = []
             # Split participants into best and worst
             half_length = int(len(incoming_participants)/2)
@@ -108,11 +89,13 @@ class DoubleEliminationTournament(AbstractTournament):
                 # the winner of the match to the next winner's round,
                 # and the loser of the match to the loser's bracket.
                 else:
-                    match = Match(participant_pair[0], participant_pair[1])
+                    # match = Match(participant_pair[0], participant_pair[1])
+                    # self.__matches.append(match)
+                    match = self._create_match(*participant_pair,
+                                               stage=str(current_stage.name))
                     next_round_participants.append(match.get_winner_participant())
                     last_winner = match.get_winner_participant()
                     losers.append(match.get_loser_participant())
-                    self.__matches.append(match)
             # If we have any losers, create a new losers round.
             # This condition means there will be no empty loser's rounds.
             if len(losers) > 0:
@@ -163,6 +146,7 @@ class DoubleEliminationTournament(AbstractTournament):
                 # Find minimum 'n' such that 
                 # 2^n < number of participants in this round.
                 next_higher_power_of_two = int(math.pow(2, math.ceil(math.log2(len(incoming_participants)))))
+                current_stage = StagesEnum(next_higher_power_of_two*2)
                 # Since every round has a different number of matches
                 # in the winners bracket ( non-trivial due to winner's byes),
                 # we compute the number of bye's in the loser's bracket
@@ -187,9 +171,11 @@ class DoubleEliminationTournament(AbstractTournament):
                     else:
                         # If we have two participants, generate a match and send
                         # the winner of the match to the next loser's round,
-                        match = Match(participant_pair[0], participant_pair[1])
+                        # match = Match(participant_pair[0], participant_pair[1])
+                        # self.__matches.append(match)
+                        match = self._create_match(*participant_pair,
+                                                   stage=str(current_stage.name))
                         incoming_participants.append(match.get_winner_participant())
-                        self.__matches.append(match)
                 if len(incoming_participants) > 0:
                     # If this is the last round
                     if len(losers_by_round) <= index + 1:
@@ -211,13 +197,18 @@ class DoubleEliminationTournament(AbstractTournament):
 
         # Generate finals match.
         # Important: the incoming winner should always be the first participant to determine bracket reset
-        finals_match = Match(last_winner, last_loser)
-        self.__matches.append(finals_match)
+        # finals_match = Match(last_winner, last_loser)
+        # self.__matches.append(finals_match)
+        finals_match = self._create_match(last_winner, last_loser,
+                                          stage=str(StagesEnum.F.name))
         self.__finals_match = finals_match
         
         if bracket_reset_finals:
-            bracket_reset_finals_match = Match(finals_match.get_winner_participant(), finals_match.get_loser_participant())
-            self.__matches.append(bracket_reset_finals_match)
+            # bracket_reset_finals_match = Match(finals_match.get_winner_participant(), finals_match.get_loser_participant())
+            # self.__matches.append(bracket_reset_finals_match)
+            bracket_reset_finals_match = self._create_match(finals_match.get_winner_participant(),
+                                                            finals_match.get_loser_participant(),
+                                                            stage=str(StagesEnum.F.name))
             # The winner of the overall tournament is the winner of the
             # bracket reset finals match.
             self.__winner = bracket_reset_finals_match.get_winner_participant()
@@ -225,47 +216,53 @@ class DoubleEliminationTournament(AbstractTournament):
         else:
             self.__winner = finals_match.get_winner_participant()
 
-    # def __iter__(self):
-    #     return iter(self.__matches)
-    #
-    # def __repr__(self) -> str:
-    #     winner = self.__winner
-    #     num_matches = len(self.__matches)
-    #     return f'<Tournament winner={winner} num_matches={num_matches}>'
-    #
-    # def get_active_matches(self):
-    #     """
-    #     Returns a list of all matches that are ready to be played.
-    #     """
-    #     return [match for match in self.get_matches() if match.is_ready_to_start()]
-    #
-    # def get_matches(self):
-    #     """
-    #     Returns a list of all matches for the tournament.
-    #     """
-    #     return self.__matches
-    #
-    # def get_active_matches_for_competitor(self, competitor):
-    #     """
-    #     Given the string or object of the competitor that was supplied
-    #     when creating the tournament instance,
-    #     returns a list of Match's that they are currently playing in.
-    #     """
-    #     matches = []
-    #     for match in self.get_active_matches():
-    #         competitors = [participant.get_competitor() for participant in match.get_participants()]
-    #         if competitor in competitors:
-    #             matches.append(match)
-    #     return matches
-    #
-    # def get_winners(self):
-    #     """
-    #     Returns None if the tournament is done, otherwise
-    #     returns list of the one victor.
-    #     """
-    #     if len(self.get_active_matches()) > 0:
-    #         return None
-    #     return [self.__winner.get_competitor()]
+    def _create_match(self, left_team, right_team, stage: str = None):
+        match_i = next(self.match_counter)
+        new_match = Match(left_team, right_team, i=match_i, stage=stage)
+        self.__matches.append(new_match)
+        return new_match
+
+    def __iter__(self):
+        return iter(self.__matches)
+
+    def __repr__(self) -> str:
+        winner = self.__winner
+        num_matches = len(self.__matches)
+        return f'<Tournament winner={winner} num_matches={num_matches}>'
+
+    def get_active_matches(self):
+        """
+        Returns a list of all matches that are ready to be played.
+        """
+        return [match for match in self.get_matches() if match.is_ready_to_start()]
+
+    def get_matches(self):
+        """
+        Returns a list of all matches for the tournament.
+        """
+        return self.__matches
+
+    def get_active_matches_for_competitor(self, competitor):
+        """
+        Given the string or object of the competitor that was supplied
+        when creating the tournament instance,
+        returns a list of Match's that they are currently playing in.
+        """
+        matches = []
+        for match in self.get_active_matches():
+            competitors = [participant.get_competitor() for participant in match.get_participants()]
+            if competitor in competitors:
+                matches.append(match)
+        return matches
+
+    def get_winners(self):
+        """
+        Returns None if the tournament is done, otherwise
+        returns list of the one victor.
+        """
+        if len(self.get_active_matches()) > 0:
+            return None
+        return [self.__winner.get_competitor()]
 
     def add_win(self, match, competitor):
         """
@@ -284,7 +281,7 @@ class DoubleEliminationTournament(AbstractTournament):
                         self.add_win(bracket_reset, finals.get_winner_participant().get_competitor())
 
 
-class SingleEliminationTournament(AbstractTournament):
+class SingleEliminationTournament:
     """
     This is a single-elimination tournament where each match is between 2 competitors.
     It takes in a list of competitors, which can be strings or any type of Python object,
@@ -292,68 +289,146 @@ class SingleEliminationTournament(AbstractTournament):
     skilled and the last being the least. They can also be randomized before creating the instance.
     Optional options dict fields:
     """
-    def __init__(self, competitors_list):
+    def __init__(self, competitors_list, max_place=1, start_match_counter=1,
+                 all_places_played=True):
+        self.max_place = max_place
+        self.sub_eliminations = []
+        self.match_counter = itertools.count(start_match_counter)
         assert len(competitors_list) > 1
         self.__matches = []
         next_higher_power_of_two = int(math.pow(2, math.ceil(math.log2(len(competitors_list)))))
         winners_number_of_byes = next_higher_power_of_two - len(competitors_list)
-        incoming_participants = list(map(Participant, competitors_list))
+        incoming_participants = []
+        for competitor in competitors_list:
+            if isinstance(competitor, Participant):
+                incoming_participants.append(competitor)
+            else:
+                incoming_participants.append(Participant(competitor))
         incoming_participants.extend([None] * winners_number_of_byes)
+        self.participants = incoming_participants[:]
 
         while len(incoming_participants) > 1:
+            next_higher_power_of_two = int(math.pow(2, math.ceil(math.log2(len(incoming_participants)))))
+            current_stage = StagesEnum(next_higher_power_of_two)
+            if current_stage == StagesEnum.Finals and max_place > 1:
+                current_stage = StagesEnum(max_place)
             half_length = int(len(incoming_participants)/2)
             first = incoming_participants[0:half_length]
             last = incoming_participants[half_length:]
             last.reverse()
             next_round_participants = []
+            participants_out = []
             for participant_pair in zip(first, last):
                 if participant_pair[1] is None:
                     next_round_participants.append(participant_pair[0])
                 elif participant_pair[0] is None:
                     next_round_participants.append(participant_pair[1])
                 else:
-                    match = Match(participant_pair[0], participant_pair[1])
+                    match = self._create_match(*participant_pair, stage=current_stage.name)
                     next_round_participants.append(match.get_winner_participant())
-                    self.__matches.append(match)
+                    participants_out.append(match.get_loser_participant())
+
             incoming_participants = next_round_participants
+            if all_places_played and len(participants_out) >= 2:
+                new_ko = SingleEliminationTournament(
+                    participants_out,
+                    max_place=int(next_higher_power_of_two/2) + max_place,
+                    start_match_counter=start_match_counter + self.total_number_of_matches + len(incoming_participants) - 1
+                )
+                self.sub_eliminations.append(new_ko)
         self.__winner = incoming_participants[0]
 
-    # def __iter__(self):
-    #     return iter(self.__matches)
-    #
-    # def get_active_matches(self):
-    #     """
-    #     Returns a list of all matches that are ready to be played.
-    #     """
-    #     return [match for match in self.get_matches() if match.is_ready_to_start()]
-    #
-    # def get_matches(self):
-    #     """
-    #     Returns a list of all matches for the tournament.
-    #     """
-    #     return self.__matches
-    #
-    # def get_active_matches_for_competitor(self, competitor):
-    #     """
-    #     Given the string or object of the competitor that was supplied
-    #     when creating the tournament instance,
-    #     returns a list of Matches that they are currently playing in.
-    #     """
-    #     matches = []
-    #     for match in self.get_active_matches():
-    #         competitors = [participant.get_competitor() for participant in match.get_participants()]
-    #         if competitor in competitors:
-    #             matches.append(match)
-    #     return matches
-    #
-    # def get_winners(self):
-    #     """
-    #     Returns None if the winner has not been decided yet,
-    #     and returns a list containing the single victor otherwise.
-    #     """
-    #     if len(self.get_active_matches()) > 0:
-    #         return None
-    #     return [self.__winner.get_competitor()]
+    @property
+    def winner(self):
+        return self.__winner
+
+    def _create_match(self, left_team, right_team, stage: str = None):
+        match_i = next(self.match_counter)
+        new_match = Match(left_team, right_team, i=match_i, stage=stage)
+        self.__matches.append(new_match)
+        return new_match
+
+    def __iter__(self):
+        return iter(self.__matches + sum([list(x) for x in self.sub_eliminations], []))
+
+    @property
+    def own_matches(self) -> Iterator[Match]:
+        return iter(self.__matches)
+
+    def add_win_by_competitor(self, competitor: Any):
+        self.add_win(self.get_active_matches_for_competitor(competitor)[0], competitor)
+
+    def iter_all_eliminations(self):
+        yield self
+        for se in self.sub_eliminations:
+            for x in se.iter_all_eliminations():
+                yield x
+
+    @property
+    def total_number_of_matches(self):
+        num_matches = len(list(self.__iter__()))
+        return num_matches
+
+    def __repr__(self) -> str:
+        winner = self.__winner
+        return f'<Tournament winner={winner} num_matches={self.total_number_of_matches} max_place={self.max_place}>'
+
+    def get_unfinished_matches(self):
+        return [match for match in self if match.is_unfinished()]
+
+    def get_own_unfinished_matches(self):
+        return [match for match in self.own_matches if match.is_unfinished()]
+
+    def pre_populate_matches(self, losing_participant: Participant):
+        out = []
+        for i, match in enumerate(self.__matches):
+            l_p, r_p = match.get_participants()
+            if str(l_p) == str(losing_participant):
+                winning_participant = r_p
+            elif str(r_p) == str(losing_participant):
+                winning_participant = l_p
+            else:
+                continue
+            match.set_winner(str(winning_participant),
+                             winner_resolved=winning_participant.resolved,
+                             loser_resolved=losing_participant.resolved)
+            out.append(self.__matches.pop(i))
+            break
+        return out
+
+    def get_active_matches(self):
+        """
+        Returns a list of all matches that are ready to be played.
+        """
+        return [match for match in self if match.is_ready_to_start()]
+
+    def get_matches(self):
+        """
+        Returns a list of all matches for the tournament.
+        """
+        return self.__matches
+
+    def get_active_matches_for_competitor(self, competitor):
+        """
+        Given the string or object of the competitor that was supplied
+        when creating the tournament instance,
+        returns a list of Match's that they are currently playing in.
+        """
+        matches = []
+        for match in self.get_active_matches():
+            competitors = [participant.get_competitor() for participant in match.get_participants()]
+            if competitor in competitors:
+                matches.append(match)
+        return matches
+
+    def get_winners(self):
+        """
+        Returns None if the tournament is done, otherwise
+        returns list of the one victor.
+        """
+        if len(self.get_active_matches()) > 0:
+            return None
+        return [self.__winner.get_competitor()]
 
     def add_win(self, match, competitor):
         """
