@@ -3,6 +3,7 @@ The Participant class represents a participant in a specific match.
 It can be used as a placeholder until the participant is decided.
 """
 
+
 class Participant:
     """
     The Participant class represents a participant in a specific match.

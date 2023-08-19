@@ -4,8 +4,9 @@ This defines a double elimination 'Tournament' object.
 import abc
 import math
 import itertools
+from collections import defaultdict
 from enum import Enum
-from typing import List, Any, Iterator
+from typing import List, Any, Iterator, Tuple
 
 from elimination_tournaments.match import Match
 from elimination_tournaments.participant import Participant
@@ -310,8 +311,8 @@ class SingleEliminationTournament:
         while len(incoming_participants) > 1:
             next_higher_power_of_two = int(math.pow(2, math.ceil(math.log2(len(incoming_participants)))))
             current_stage = StagesEnum(next_higher_power_of_two)
-            if current_stage == StagesEnum.Finals and max_place > 1:
-                current_stage = StagesEnum(max_place)
+            # if current_stage == StagesEnum.Finals and max_place > 1:
+            #     current_stage = StagesEnum(max_place)
             half_length = int(len(incoming_participants)/2)
             first = incoming_participants[0:half_length]
             last = incoming_participants[half_length:]
@@ -342,6 +343,23 @@ class SingleEliminationTournament:
     def winner(self):
         return self.__winner
 
+    def get_own_standing(self):
+        stage2matches = dict(self.own_matches_by_stage)
+        final_match = stage2matches[StagesEnum.Finals]
+        winner = final_match[0].get_winner_participant()
+        loser = final_match[0].get_loser_participant()
+        return {
+            self.max_place: winner.get_competitor(),
+            self.max_place+1: loser.get_competitor()
+        }
+
+    def get_complete_standing(self):
+        standings = dict()
+        for et in self.iter_all_eliminations():
+            standings.update(et.get_own_standing())
+        out = [x[1] for x in sorted(standings.items(), key=lambda z: z[0])]
+        return out
+
     def _create_match(self, left_team, right_team, stage: str = None):
         match_i = next(self.match_counter)
         new_match = Match(left_team, right_team, i=match_i, stage=stage)
@@ -354,6 +372,35 @@ class SingleEliminationTournament:
     @property
     def own_matches(self) -> Iterator[Match]:
         return iter(self.__matches)
+
+    @property
+    def own_matches_by_stage(self) -> List[Tuple[StagesEnum, List[Match]]]:
+        stage2match = dict()
+        for m in self.__matches:
+            m: Match
+            try:
+                stage2match[StagesEnum[m.stage]].append(m)
+            except KeyError:
+                stage2match[StagesEnum[m.stage]] = [m]
+        out = sorted(stage2match.items(), key=lambda x: x[0].value, reverse=True)
+        return out
+
+    @property
+    def all_matches_places_by_stage(self) -> List[Tuple[StagesEnum, List[Tuple[int, List[Match]]]]]:
+        stage2match = defaultdict(list)
+        match2place = dict()
+        for et in self.iter_all_eliminations():
+            for m in et.own_matches:
+                match2place[m.id] = et.max_place
+                stage2match[StagesEnum[m.stage]].append(m)
+        stage2places_matches = dict()
+        for stage, ms in stage2match.items():
+            place2matches = defaultdict(list)
+            for m in ms:
+                place2matches[match2place[m.id]].append(m)
+            stage2places_matches[stage] = place2matches.items()
+        out = sorted(stage2places_matches.items(), key=lambda x: x[0].value, reverse=True)
+        return out
 
     def add_win_by_competitor(self, competitor: Any):
         self.add_win(self.get_active_matches_for_competitor(competitor)[0], competitor)

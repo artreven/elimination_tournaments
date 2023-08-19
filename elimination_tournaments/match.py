@@ -15,7 +15,7 @@ class Match:
     so they can be accessed as individual object pointers.
     """
     def __init__(self, left_participant, right_participant,
-                 i: int = None,
+                 i: int,
                  stage: str = None):
         self.__left_participant = left_participant
         self.__right_participant = right_participant
@@ -23,6 +23,12 @@ class Match:
         self.__winner = Participant(f'Winner {self.id}', resolved=False)
         self.__loser = Participant(f'Loser {self.id}', resolved=False)
         self.stage = stage
+
+    @property
+    def ready_to_start(self):
+        return self.left_participant.resolved and \
+            self.right_participant.resolved and \
+            (not self.get_winner_participant().resolved)
 
     @property
     def left_participant(self) -> Participant:
